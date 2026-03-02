@@ -1,0 +1,20 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Env
+.env
+server/.env
+client/.env
+
+# Build
+dist/
+build/
+
+# Uploads
+server/uploads/
+
+# OS
+.DS_Store
+Thumbs.db
