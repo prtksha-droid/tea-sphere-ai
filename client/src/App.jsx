@@ -1,7 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 
-const API_BASE = "http://localhost:3001";
+const API_BASE = "https://tea-sphere-ai.onrender.com";
 
 export default function App() {
 
