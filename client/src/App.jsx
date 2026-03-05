@@ -1,261 +1,359 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import axios from "axios";
-import "./App.css";
 
-const API_BASE = "https://tea-sphere-ai.onrender.com";
+const API_BASE = "http://localhost:3001";
 
 export default function App() {
-  const [file, setFile] = useState(null);
-  const [areaHa, setAreaHa] = useState(10);
-  const [yieldKgPerHa, setYieldKgPerHa] = useState(2200);
-  const [pricePerKg, setPricePerKg] = useState(180);
 
-  const [loading, setLoading] = useState(false);
+  const [image, setImage] = useState(null);
   const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [translatedReport, setTranslatedReport] = useState(null);
+  const [translating, setTranslating] = useState(false);
 
-  const [agentLoading, setAgentLoading] = useState(false);
-  const [agent, setAgent] = useState(null);
+  const handleUpload = (e) => {
+    setImage(e.target.files[0]);
+  };
 
-  const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+  const runDiagnosis = async () => {
 
-  async function runDiagnosis() {
-    if (!file) return alert("Please upload a leaf image first.");
+    if (!image) {
+      alert("Upload a tea leaf image first");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("image", image);
+
     setLoading(true);
-    setResult(null);
-    setAgent(null);
 
     try {
-      const form = new FormData();
-      form.append("image", file);
-      form.append("areaHa", String(areaHa));
-      form.append("yieldKgPerHa", String(yieldKgPerHa));
-      form.append("pricePerKg", String(pricePerKg));
 
-      const { data } = await axios.post(`${API_BASE}/api/diagnose`, form, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
+      const res = await axios.post(
+        `${API_BASE}/api/diagnose`,
+        formData
+      );
 
-      setResult(data);
-    } catch (e) {
-      console.error(e);
-      alert("Diagnosis failed. Check server logs.");
-    } finally {
-      setLoading(false);
+      setResult(res.data);
+      setTranslatedReport(null);
+
+    } catch (err) {
+      console.error(err);
+      alert("Diagnosis failed");
     }
-  }
 
-  async function runAgentMode() {
-    if (!result?.ai?.diagnosis?.label) return alert("Run diagnosis first.");
-    setAgentLoading(true);
-    setAgent(null);
+    setLoading(false);
+  };
+
+  const translateReport = async (language) => {
+
+  setTranslating(true);
+
+  try {
+
+    const res = await axios.post(
+      `${API_BASE}/api/translate-report`,
+      {
+        report: result.report,
+        language
+      }
+    );
+
+    let translated = res.data.translation;
 
     try {
-      // Mock last 7 days findings for SaaS feel (POC)
-      const findings = [
-        { label: result.ai.diagnosis.label, severity: result.ai.diagnosis.severity, count: 7 },
-        { label: "Healthy", severity: "mild", count: 21 }
-      ];
+      translated = JSON.parse(translated);
+    } catch {}
 
-      const { data } = await axios.post(`${API_BASE}/api/agent-summary`, {
-        estateName: "Khumtai Demo Estate",
-        last7DaysFindings: findings,
-        areaHa,
-        yieldKgPerHa,
-        pricePerKg
-      });
+    setTranslatedReport(translated);
 
-      setAgent(data.agent);
-    } catch (e) {
-      console.error(e);
-      alert("Agent mode failed. Check server logs.");
-    } finally {
-      setAgentLoading(false);
-    }
+  } catch (err) {
+
+    console.error(err);
+    alert("Translation failed");
+
   }
 
-  const impact = result?.impact;
-  const noAction = impact?.scenarios?.no_action;
-  const immediate = impact?.scenarios?.immediate_action;
+  setTranslating(false);
+
+};
+
+  const severityColor = (severity) => {
+
+    if (severity === "mild") return "#4CAF50";
+    if (severity === "moderate") return "#FFC107";
+    if (severity === "severe") return "#F44336";
+
+    return "#999";
+  };
 
   return (
-    <div style={{ maxWidth: 980, margin: "0 auto", padding: 20, fontFamily: "system-ui" }}>
-      <h2>TeaSphere AI — POC</h2>
-      <p style={{ marginTop: -8, opacity: 0.7 }}>
-        Upload a leaf image → AI diagnosis → yield & revenue impact → Agent mode summary
+
+    <div style={styles.container}>
+
+      <h1 style={styles.title}>TeaSphere AI</h1>
+      <p style={styles.subtitle}>
+        AI Tea Plantation Intelligence Platform
       </p>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 16 }}>
-          <h3>1) Upload leaf image</h3>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-          />
-          {previewUrl && (
-            <div style={{ marginTop: 12 }}>
-              <img
-                src={previewUrl}
-                alt="preview"
-                style={{ width: "100%", borderRadius: 12, border: "1px solid #eee" }}
-              />
-            </div>
-          )}
-        </div>
+      <div style={styles.uploadSection}>
 
-        <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 16 }}>
-          <h3>2) Baseline inputs (POC)</h3>
-          <div style={{ display: "grid", gap: 10 }}>
-            <label>
-              Area (hectares)
-              <input value={areaHa} onChange={(e) => setAreaHa(Number(e.target.value))} />
-            </label>
-            <label>
-              Yield (kg/ha)
-              <input
-                value={yieldKgPerHa}
-                onChange={(e) => setYieldKgPerHa(Number(e.target.value))}
-              />
-            </label>
-            <label>
-              Price (₹/kg)
-              <input value={pricePerKg} onChange={(e) => setPricePerKg(Number(e.target.value))} />
-            </label>
+        <input type="file" onChange={handleUpload} />
 
-            <button
-              onClick={runDiagnosis}
-              disabled={loading}
-              style={{ padding: "10px 12px", borderRadius: 10 }}
-            >
-              {loading ? "Diagnosing..." : "Run AI Diagnosis"}
-            </button>
+        <button style={styles.button} onClick={runDiagnosis}>
+          Run AI Diagnosis
+        </button>
 
-            <button
-              onClick={runAgentMode}
-              disabled={agentLoading || !result}
-              style={{ padding: "10px 12px", borderRadius: 10 }}
-            >
-              {agentLoading ? "Agent running..." : "Activate Estate Monitor (Agent Mode)"}
-            </button>
-          </div>
-        </div>
       </div>
 
+      {loading && <p>Analyzing leaf image...</p>}
+
       {result && (
-        <div style={{ marginTop: 16, border: "1px solid #eee", borderRadius: 12, padding: 16 }}>
-          <h3>3) Diagnosis</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <div>
-              <b>Label:</b> {result.ai?.diagnosis?.label || "—"} <br />
+
+        <div style={styles.dashboard}>
+
+          <div style={styles.card}>
+
+            <h2>Leaf Diagnosis</h2>
+
+            <p>
+              <b>Disease / Pest:</b> {result?.diagnosis?.label || "Unknown"}
+            </p>
+
+            <p>
               <b>Confidence:</b>{" "}
-              {typeof result.ai?.diagnosis?.confidence === "number"
-                ? (result.ai.diagnosis.confidence * 100).toFixed(0) + "%"
-                : "—"}
-              <br />
-              <b>Severity:</b> {result.ai?.diagnosis?.severity || "—"}
-              <div style={{ marginTop: 12 }}>
-                <b>Symptoms</b>
-                <ul>
-                  {(result.ai?.symptoms || []).slice(0, 8).map((s, i) => (
-                    <li key={i}>{s}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+              {result?.diagnosis?.confidence
+                ? (result.diagnosis.confidence * 100).toFixed(0) + "%"
+                : "N/A"}
+            </p>
 
-            <div>
-              <b>Recommended actions</b>
-              <ul>
-                {(result.ai?.recommended_actions || []).slice(0, 8).map((a, i) => (
-                  <li key={i}>{a}</li>
-                ))}
-              </ul>
-              <div style={{ opacity: 0.8 }}>
-                <b>Notes:</b> {result.ai?.notes || "—"}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+            <p>
+              <b>Severity:</b>{" "}
+              <span
+                style={{
+                  background: severityColor(result?.diagnosis?.severity),
+                  color: "white",
+                  padding: "4px 10px",
+                  borderRadius: "6px"
+                }}
+              >
+                {result?.diagnosis?.severity || "Unknown"}
+              </span>
+            </p>
 
-      {impact && (
-        <div style={{ marginTop: 16, border: "1px solid #eee", borderRadius: 12, padding: 16 }}>
-          <h3>4) Yield & Revenue Impact (Simulation)</h3>
-          <p style={{ marginTop: -8, opacity: 0.75 }}>
-            POC simulator: compares “No action” vs “Immediate action” outcomes.
-          </p>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-            <div style={{ padding: 12, border: "1px solid #f0f0f0", borderRadius: 12 }}>
-              <b>Baseline yield</b>
-              <div style={{ fontSize: 22 }}>{impact.baselineYieldKg.toFixed(0)} kg</div>
-            </div>
-
-            <div style={{ padding: 12, border: "1px solid #f0f0f0", borderRadius: 12 }}>
-              <b>No action</b>
-              <div>Loss: {(noAction.lossPct * 100).toFixed(0)}%</div>
-              <div>Lost: {noAction.lostKg.toFixed(0)} kg</div>
-              <div>₹ Loss: {noAction.revenueLoss.toFixed(0)}</div>
-            </div>
-
-            <div style={{ padding: 12, border: "1px solid #f0f0f0", borderRadius: 12 }}>
-              <b>Immediate action</b>
-              <div>Loss: {(immediate.lossPct * 100).toFixed(0)}%</div>
-              <div>Lost: {immediate.lostKg.toFixed(0)} kg</div>
-              <div>₹ Loss: {immediate.revenueLoss.toFixed(0)}</div>
-            </div>
           </div>
 
-          <div style={{ marginTop: 12, padding: 12, border: "1px dashed #ddd", borderRadius: 12 }}>
-            <b>Estimated savings:</b> {impact.savings.savedKg.toFixed(0)} kg / ₹{" "}
-            {impact.savings.savedRevenue.toFixed(0)}
-          </div>
-        </div>
-      )}
+          <div style={styles.metricsRow}>
 
-      {agent && (
-        <div style={{ marginTop: 16, border: "1px solid #eee", borderRadius: 12, padding: 16 }}>
-          <h3>5) Agent Mode — Weekly Executive Summary</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
-            <div>
-              <div style={{ whiteSpace: "pre-wrap" }}>{agent.weekly_summary}</div>
-
-              <div style={{ marginTop: 12 }}>
-                <b>Top risks</b>
-                <ul>
-                  {(agent.top_risks || []).map((r, i) => (
-                    <li key={i}>{r}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <div>
-                <b>7-day plan</b>
-                <ul>
-                  {(agent.recommended_plan_7_days || []).map((p, i) => (
-                    <li key={i}>{p}</li>
-                  ))}
-                </ul>
-              </div>
+            <div style={styles.metricCard}>
+              <h3>Health Score</h3>
+              <h1>{result?.healthScore ?? "-"} / 100</h1>
             </div>
 
-            <div style={{ padding: 12, border: "1px solid #f0f0f0", borderRadius: 12 }}>
-              <b>Risk score</b>
-              <div style={{ fontSize: 34 }}>{agent.risk_score_0_100}</div>
-              <div style={{ marginTop: 12, opacity: 0.85 }}>
-                <b>Best case:</b> {agent.expected_business_impact?.best_case}
-                <br />
-                <b>Worst case:</b> {agent.expected_business_impact?.worst_case}
-              </div>
+            <div style={styles.metricCard}>
+              <h3>Risk Score</h3>
+              <h1>{result?.riskScore ?? "-"}%</h1>
             </div>
-          </div>
-        </div>
-      )}
 
-     <div style={{ marginTop: 28, opacity: 0.7, fontSize: 12 }}>
-  POC note: This demo uses AI + simulation to illustrate value. Future phases will replace simulation
-  with estate datasets and trained models.
+          </div>
+
+          <div style={styles.card}>
+
+            <h2>Economic Impact</h2>
+
+            <p>
+              <b>Baseline Yield:</b> {result?.impact?.baselineYieldKg ?? "-"} kg
+            </p>
+
+            <p>
+              <b>No Action Loss:</b> ₹
+              {result?.impact?.scenarios?.no_action?.revenueLoss?.toFixed?.(0) ?? "-"}
+            </p>
+
+            <p>
+              <b>Immediate Action Loss:</b> ₹
+              {result?.impact?.scenarios?.immediate_action?.revenueLoss?.toFixed?.(0) ?? "-"}
+            </p>
+
+            <p>
+              <b>Potential Savings:</b> ₹
+              {result?.impact?.savings?.savedRevenue?.toFixed?.(0) ?? "-"}
+            </p>
+
+          </div>
+
+          <div style={styles.card}>
+
+            <h2>Recommended Actions</h2>
+
+            <ul>
+              {result?.recommended_actions?.map((a, i) => (
+                <li key={i}>{a}</li>
+              ))}
+            </ul>
+
+          </div>
+
+          <div style={styles.card}>
+
+            <h2>Agronomic Report</h2>
+
+            <div style={{ marginBottom: 15 }}>
+
+              <button
+                style={styles.button}
+                onClick={() => translateReport("Assamese")}
+              >
+                Translate to Assamese
+              </button>
+
+              <button
+                style={{ ...styles.button, marginLeft: 10 }}
+                onClick={() => translateReport("Hindi")}
+              >
+                Translate to Hindi
+              </button>
+
+            </div>
+             {translating && (
+  <p style={{ marginTop: 10, color: "#2563eb" }}>
+    Translating report... please wait
+  </p>
+)}
+            <p><b>Executive Summary:</b></p>
+            <p>{result?.report?.executive_summary}</p>
+
+            <p><b>Visual Symptoms:</b></p>
+            <p>{result?.report?.visual_symptoms}</p>
+
+            <p><b>Scientific Explanation:</b></p>
+            <p>{result?.report?.scientific_explanation}</p>
+
+            <p><b>Environmental Conditions:</b></p>
+            <p>{result?.report?.environmental_conditions}</p>
+
+            <p><b>Plant Physiology Impact:</b></p>
+            <p>{result?.report?.plant_physiology_impact}</p>
+
+            <p><b>Yield Risk Analysis:</b></p>
+            <p>{result?.report?.yield_risk_analysis}</p>
+
+            <h3>Treatment Strategy</h3>
+
+            <p><b>Chemical Control:</b></p>
+            <p>{result?.report?.treatment_strategy?.chemical_control}</p>
+
+            <p><b>Cultural Control:</b></p>
+            <p>{result?.report?.treatment_strategy?.cultural_control}</p>
+
+            <p><b>Biological Control:</b></p>
+            <p>{result?.report?.treatment_strategy?.biological_control}</p>
+
+            <p><b>Monitoring Protocol:</b></p>
+            <p>{result?.report?.treatment_strategy?.monitoring_protocol}</p>
+
+            <p><b>Long-Term Prevention:</b></p>
+            <p>{result?.report?.treatment_strategy?.long_term_prevention}</p>
+
+            {translatedReport && (
+
+<div style={{ marginTop: 25 }}>
+
+<h3>Translated Report</h3>
+
+<div
+  style={{
+    background: "#eef2ff",
+    padding: 20,
+    borderRadius: 10
+  }}
+>
+
+<p><b>Executive Summary:</b></p>
+<p>{translatedReport.executive_summary}</p>
+
+<p><b>Symptoms:</b></p>
+<p>{translatedReport.visual_symptoms}</p>
+
+<p><b>Scientific Explanation:</b></p>
+<p>{translatedReport.scientific_explanation}</p>
+
+<p><b>Treatment:</b></p>
+<p>{translatedReport.treatment_strategy?.chemical_control}</p>
+
 </div>
+
+</div>
+
+)}
+
+          </div>
+
+        </div>
+
+      )}
+
     </div>
   );
 }
+
+const styles = {
+
+  container: {
+    fontFamily: "Inter, Arial",
+    background: "#f5f7fb",
+    minHeight: "100vh",
+    padding: "40px"
+  },
+
+  title: {
+    fontSize: "36px",
+    marginBottom: "5px"
+  },
+
+  subtitle: {
+    color: "#666",
+    marginBottom: "30px"
+  },
+
+  uploadSection: {
+    marginBottom: "30px"
+  },
+
+  button: {
+    marginLeft: "10px",
+    padding: "10px 20px",
+    background: "#2563eb",
+    color: "white",
+    border: "none",
+    borderRadius: "6px",
+    cursor: "pointer"
+  },
+
+  dashboard: {
+    display: "grid",
+    gap: "20px"
+  },
+
+  card: {
+    background: "white",
+    padding: "20px",
+    borderRadius: "10px",
+    boxShadow: "0 4px 10px rgba(0,0,0,0.05)"
+  },
+
+  metricsRow: {
+    display: "flex",
+    gap: "20px"
+  },
+
+  metricCard: {
+    flex: 1,
+    background: "white",
+    padding: "20px",
+    borderRadius: "10px",
+    textAlign: "center",
+    boxShadow: "0 4px 10px rgba(0,0,0,0.05)"
+  }
+
+};
