@@ -93,69 +93,136 @@ app.post("/api/diagnose", upload.single("image"), async (req, res) => {
 
   try {
 
-    console.log("Diagnose request received");
-
     if (!req.file) {
       return res.status(400).json({ error: "No image uploaded" });
     }
 
     filePath = req.file.path;
 
-    const imageBase64 = fs.readFileSync(filePath, { encoding: "base64" });
-    const mimeType = req.file.mimetype || "image/jpeg";
-
     const areaHa = Number(req.body.areaHa ?? 10);
     const yieldKgPerHa = Number(req.body.yieldKgPerHa ?? 2200);
     const pricePerKg = Number(req.body.pricePerKg ?? 180);
 
-    let parsed = {
-      diagnosis: {
-        label: "Unknown",
-        confidence: 0.3,
-        severity: "moderate"
-      },
-      report: {
-        executive_summary: "AI analysis failed but image upload succeeded."
-      },
-      recommended_actions: []
-    };
+    const imageBase64 = fs.readFileSync(filePath, { encoding: "base64" });
+    const mimeType = req.file.mimetype || "image/jpeg";
+
+    const prompt = `
+You are a senior agricultural scientist specializing in tea plantation pathology and pest management.
+
+Carefully analyze the uploaded tea leaf image.
+
+Identify the most likely disease, pest, or physiological stress affecting the tea plant.
+
+Return ONLY JSON using the structure below.
+
+{
+ "diagnosis": {
+  "label": "name of disease or pest",
+  "confidence": number between 0 and 1,
+  "severity": "mild | moderate | severe"
+ },
+
+ "report": {
+  "executive_summary": "Short overview of the detected issue",
+
+  "visual_symptoms": "Detailed description of visible symptoms on the leaf",
+
+  "scientific_explanation": "Biological explanation of the disease or pest and how it affects tea plants",
+
+  "environmental_conditions": "Weather and plantation conditions that typically cause this issue",
+
+  "plant_physiology_impact": "How this issue affects photosynthesis, plant growth, and yield",
+
+  "yield_risk_analysis": "Potential yield loss percentages and plantation productivity impact",
+
+  "economic_impact": "Possible economic consequences for tea estates",
+
+  "spread_risk": "Likelihood of the disease spreading across the plantation",
+
+  "monitoring_recommendations": "How plantation managers should monitor and track this issue",
+
+  "treatment_strategy": {
+ "chemical_control": "Specific chemical or fungicide treatment including active ingredient and dosage",
+ "cultural_control": "Agronomic field management actions like pruning, sanitation, irrigation changes",
+ "biological_control": "Biological control methods if applicable",
+ "monitoring_protocol": "Detailed inspection schedule and monitoring strategy",
+ "long_term_prevention": "Long-term plantation management practices to prevent recurrence"
+},
+
+  "long_term_prevention": "Best agricultural practices to prevent this issue in future"
+ },
+
+ "recommended_actions": [
+  "Immediate field action 1",
+  "Immediate field action 2",
+  "Immediate field action 3",
+  "Monitoring action 4",
+  "Prevention action 5"
+ ]
+}
+
+Rules:
+- Return ONLY JSON.
+- Always provide a detailed report.
+- Assume the reader is a plantation manager or agricultural researcher.
+`;
+
+    const resp = await client.chat.completions.create({
+
+  model: "gpt-4.1-mini",
+
+  response_format: { type: "json_object" },
+
+  messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${mimeType};base64,${imageBase64}`
+              }
+            }
+          ]
+        }
+      ],
+
+      temperature: 0.2
+    });
+
+    const raw = resp.choices?.[0]?.message?.content ?? "{}";
+	console.log(raw);
+
+    let parsed;
 
     try {
-
-      const resp = await client.chat.completions.create({
-
-        model: "gpt-4.1-mini",
-
-        response_format: { type: "json_object" },
-
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: prompt },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${mimeType};base64,${imageBase64}`
-                }
-              }
-            ]
-          }
-        ],
-
-        temperature: 0.2
-      });
-
-      const raw = resp?.choices?.[0]?.message?.content ?? "{}";
-
-      parsed = JSON.parse(raw);
-
-    } catch (aiError) {
-
-      console.error("AI analysis failed:", aiError);
-
+      parsed = {
+  diagnosis: {
+    label: "Unknown",
+    confidence: 0.3,
+    severity: "moderate"
+  },
+  report: {
+    executive_summary: raw,
+    visual_symptoms: "AI response formatting failed.",
+    scientific_explanation: "",
+    environmental_conditions: "",
+    plant_physiology_impact: "",
+    yield_risk_analysis: "",
+    treatment_strategy: {
+      chemical_control: "",
+      cultural_control: "",
+      biological_control: "",
+      monitoring_protocol: "",
+      long_term_prevention: ""
+    }
+  },
+  recommended_actions: []
+};
     }
 
+    /* Impact Simulation */
     const impact = simulateImpact({
       severity: parsed?.diagnosis?.severity,
       areaHa,
@@ -163,6 +230,7 @@ app.post("/api/diagnose", upload.single("image"), async (req, res) => {
       pricePerKg
     });
 
+    /* Risk Prediction */
     const riskScore = calculateRisk({
       temperature: 32,
       humidity: 45
@@ -170,27 +238,36 @@ app.post("/api/diagnose", upload.single("image"), async (req, res) => {
 
     const healthScore = plantationHealthScore(riskScore);
 
-    const result = {
+    res.json({
+
       ok: true,
+
+      input: {
+        areaHa,
+        yieldKgPerHa,
+        pricePerKg
+      },
+
       diagnosis: parsed.diagnosis,
+
       report: parsed.report,
+
       recommended_actions: parsed.recommended_actions,
+
       riskScore,
+
       healthScore,
+
       impact
-    };
-
-    console.log("Returning result");
-
-    return res.json(result);
+    });
 
   } catch (err) {
 
-    console.error("Diagnose endpoint error:", err);
+    console.error(err);
 
-    return res.status(500).json({
-      ok: false,
-      error: err.message
+    res.status(500).json({
+      error: "Server error",
+      details: err.message
     });
 
   } finally {
@@ -198,9 +275,7 @@ app.post("/api/diagnose", upload.single("image"), async (req, res) => {
     if (filePath) {
       fs.unlink(filePath, () => {});
     }
-
   }
-
 });
 
 
