@@ -192,34 +192,46 @@ Rules:
     });
 
     const raw = resp.choices?.[0]?.message?.content ?? "{}";
-	console.log(raw);
+console.log("AI RAW RESPONSE:", raw);
 
-    let parsed;
+let parsed;
 
-    try {
-      parsed = {
-  diagnosis: {
-    label: "Unknown",
-    confidence: 0.3,
-    severity: "moderate"
-  },
-  report: {
-    executive_summary: raw,
-    visual_symptoms: "AI response formatting failed.",
-    scientific_explanation: "",
-    environmental_conditions: "",
-    plant_physiology_impact: "",
-    yield_risk_analysis: "",
-    treatment_strategy: {
-      chemical_control: "",
-      cultural_control: "",
-      biological_control: "",
-      monitoring_protocol: "",
+try {
+
+  // Try parsing AI JSON
+  parsed = JSON.parse(raw);
+
+} catch {
+
+  // Fallback if AI returns invalid JSON
+  parsed = {
+    diagnosis: {
+      label: "Unknown",
+      confidence: 0.3,
+      severity: "moderate"
+    },
+    report: {
+      executive_summary: raw || "AI analysis failed.",
+      visual_symptoms: "AI response formatting failed.",
+      scientific_explanation: "",
+      environmental_conditions: "",
+      plant_physiology_impact: "",
+      yield_risk_analysis: "",
+      economic_impact: "",
+      spread_risk: "",
+      monitoring_recommendations: "",
+      treatment_strategy: {
+        chemical_control: "",
+        cultural_control: "",
+        biological_control: "",
+        monitoring_protocol: "",
+        long_term_prevention: ""
+      },
       long_term_prevention: ""
-    }
-  },
-  recommended_actions: []
-};
+    },
+    recommended_actions: []
+  };
+
     }
 
     /* Impact Simulation */
