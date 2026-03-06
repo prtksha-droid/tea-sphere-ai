@@ -198,12 +198,13 @@ let parsed;
 
 try {
 
-  // Try parsing AI JSON
+  // try to parse AI JSON response
   parsed = JSON.parse(raw);
 
-} catch {
+} catch (err) {
 
-  // Fallback if AI returns invalid JSON
+  console.log("JSON parse failed, using fallback");
+
   parsed = {
     diagnosis: {
       label: "Unknown",
@@ -211,8 +212,8 @@ try {
       severity: "moderate"
     },
     report: {
-      executive_summary: raw || "AI analysis failed.",
-      visual_symptoms: "AI response formatting failed.",
+      executive_summary: raw || "AI response formatting failed.",
+      visual_symptoms: "",
       scientific_explanation: "",
       environmental_conditions: "",
       plant_physiology_impact: "",
@@ -232,7 +233,7 @@ try {
     recommended_actions: []
   };
 
-    }
+}
 
     /* Impact Simulation */
     const impact = simulateImpact({
