@@ -31,7 +31,12 @@ export default function App() {
 
       const res = await axios.post(
         `${API_BASE}/api/diagnose`,
-        formData
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data"
+          }
+        }
       );
 
       setResult(res.data);
@@ -47,36 +52,40 @@ export default function App() {
 
   const translateReport = async (language) => {
 
-  setTranslating(true);
+    if (!result || !result.report) {
+      alert("Run diagnosis first");
+      return;
+    }
 
-  try {
-
-    const res = await axios.post(
-      `${API_BASE}/api/translate-report`,
-      {
-        report: result.report,
-        language
-      }
-    );
-
-    let translated = res.data.translation;
+    setTranslating(true);
 
     try {
-      translated = JSON.parse(translated);
-    } catch {}
 
-    setTranslatedReport(translated);
+      const res = await axios.post(
+        `${API_BASE}/api/translate-report`,
+        {
+          report: result.report,
+          language
+        }
+      );
 
-  } catch (err) {
+      let translated = res.data.translation;
 
-    console.error(err);
-    alert("Translation failed");
+      try {
+        translated = JSON.parse(translated);
+      } catch {}
 
-  }
+      setTranslatedReport(translated);
 
-  setTranslating(false);
+    } catch (err) {
 
-};
+      console.error(err);
+      alert("Translation failed");
+
+    }
+
+    setTranslating(false);
+  };
 
   const severityColor = (severity) => {
 
@@ -106,7 +115,11 @@ export default function App() {
 
       </div>
 
-      {loading && <p>Analyzing leaf image...</p>}
+      {loading && (
+        <p style={{color:"#2563eb"}}>
+          Analyzing leaf image... first run may take ~30 seconds
+        </p>
+      )}
 
       {result && (
 
@@ -215,11 +228,13 @@ export default function App() {
               </button>
 
             </div>
-             {translating && (
-  <p style={{ marginTop: 10, color: "#2563eb" }}>
-    Translating report... please wait
-  </p>
-)}
+
+            {translating && (
+              <p style={{ marginTop: 10, color: "#2563eb" }}>
+                Translating report... please wait
+              </p>
+            )}
+
             <p><b>Executive Summary:</b></p>
             <p>{result?.report?.executive_summary}</p>
 
@@ -257,35 +272,35 @@ export default function App() {
 
             {translatedReport && (
 
-<div style={{ marginTop: 25 }}>
+              <div style={{ marginTop: 25 }}>
 
-<h3>Translated Report</h3>
+                <h3>Translated Report</h3>
 
-<div
-  style={{
-    background: "#eef2ff",
-    padding: 20,
-    borderRadius: 10
-  }}
->
+                <div
+                  style={{
+                    background: "#eef2ff",
+                    padding: 20,
+                    borderRadius: 10
+                  }}
+                >
 
-<p><b>Executive Summary:</b></p>
-<p>{translatedReport.executive_summary}</p>
+                  <p><b>Executive Summary:</b></p>
+                  <p>{translatedReport.executive_summary}</p>
 
-<p><b>Symptoms:</b></p>
-<p>{translatedReport.visual_symptoms}</p>
+                  <p><b>Symptoms:</b></p>
+                  <p>{translatedReport.visual_symptoms}</p>
 
-<p><b>Scientific Explanation:</b></p>
-<p>{translatedReport.scientific_explanation}</p>
+                  <p><b>Scientific Explanation:</b></p>
+                  <p>{translatedReport.scientific_explanation}</p>
 
-<p><b>Treatment:</b></p>
-<p>{translatedReport.treatment_strategy?.chemical_control}</p>
+                  <p><b>Treatment:</b></p>
+                  <p>{translatedReport.treatment_strategy?.chemical_control}</p>
 
-</div>
+                </div>
 
-</div>
+              </div>
 
-)}
+            )}
 
           </div>
 
